@@ -12,7 +12,7 @@
       "agent": "engineering.software-engineer",
       "max": 2,
       "commit_after": true,
-      "config": { "max_iterations": 20, "max_turns": 50, "supervisor_interval": 2 }
+      "config": { "max_iterations": 30, "max_turns": 60, "supervisor_interval": 2 }
     },
     {
       "id": "summary",
