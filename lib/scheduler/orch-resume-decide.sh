@@ -193,46 +193,52 @@ _resume_decide_for_worker() {
             resume_state_increment "$worker_dir" "COMPLETE" "" "" "Resume-decide finalized as COMPLETE"
 
             # Create PR if needed
-            local pr_url=""
-            if [ -f "$worker_dir/pr_url.txt" ]; then
-                pr_url=$(cat "$worker_dir/pr_url.txt" 2>/dev/null)
-            fi
-            if [ -z "$pr_url" ] && [ -d "$worker_dir/workspace" ]; then
-                source "$WIGGUM_HOME/lib/git/git-operations.sh"
-                local branch_name
-                branch_name=$(cd "$worker_dir/workspace" && git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
-                if [ -n "$branch_name" ] && [ "$branch_name" != "HEAD" ]; then
-                    (cd "$worker_dir/workspace" && git push -u origin "$branch_name" 2>/dev/null) || true
-                    local task_desc=""
-                    if [ -f "$worker_dir/prd.md" ]; then
-                        task_desc=$(head -5 "$worker_dir/prd.md" | sed -n 's/^# *//p' | head -1)
-                    fi
-                    task_desc="${task_desc:-Task $task_id}"
-                    local pr_exit=0
-                    git_create_pr "$branch_name" "$task_id" "$task_desc" "$worker_dir" "$PROJECT_DIR" || pr_exit=$?
-                    if [ $pr_exit -eq 0 ] && [ -n "${GIT_PR_URL:-}" ]; then
-                        echo "$GIT_PR_URL" > "$worker_dir/pr_url.txt"
-                    fi
-                fi
-            fi
-
-            # Re-read pr_url after creation attempt
-            [ -f "$worker_dir/pr_url.txt" ] && pr_url=$(cat "$worker_dir/pr_url.txt" 2>/dev/null)
-
-            # Only mark [P] if PR exists or workspace is available; otherwise mark failed
-            lifecycle_is_loaded || lifecycle_load
-            if [ -n "$pr_url" ] || [ -d "$worker_dir/workspace" ]; then
-                if ! emit_event "$worker_dir" "task.pending_approval" "orch-resume-decide.COMPLETE"; then
-                    update_kanban_pending_approval "$RALPH_DIR/kanban.md" "$task_id" || true
-                fi
-                resume_state_set_terminal "$worker_dir" "Work complete, task marked [P]"
-                log "Task $task_id finalized as COMPLETE by resume-decide"
+            # Check if task-worker completed without code changes (operational task)
+            if [ -f "$worker_dir/no-pr-needed" ]; then
+                resume_state_set_terminal "$worker_dir" "Work complete, no code changes (operational task)"
+                log "Task $task_id completed without code changes — skipping PR creation"
             else
-                emit_event "$worker_dir" "worker.failure" "orch-resume-decide.COMPLETE.no_pr" || {
-                    update_kanban_failed "$RALPH_DIR/kanban.md" "$task_id" || true
-                }
-                resume_state_set_terminal "$worker_dir" "COMPLETE but no PR and no workspace — marked [*]"
-                log_error "Task $task_id COMPLETE decision but no PR or workspace — marking failed"
+                local pr_url=""
+                if [ -f "$worker_dir/pr_url.txt" ]; then
+                    pr_url=$(cat "$worker_dir/pr_url.txt" 2>/dev/null)
+                fi
+                if [ -z "$pr_url" ] && [ -d "$worker_dir/workspace" ]; then
+                    source "$WIGGUM_HOME/lib/git/git-operations.sh"
+                    local branch_name
+                    branch_name=$(cd "$worker_dir/workspace" && git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+                    if [ -n "$branch_name" ] && [ "$branch_name" != "HEAD" ]; then
+                        (cd "$worker_dir/workspace" && git push -u origin "$branch_name" 2>/dev/null) || true
+                        local task_desc=""
+                        if [ -f "$worker_dir/prd.md" ]; then
+                            task_desc=$(head -5 "$worker_dir/prd.md" | sed -n 's/^# *//p' | head -1)
+                        fi
+                        task_desc="${task_desc:-Task $task_id}"
+                        local pr_exit=0
+                        git_create_pr "$branch_name" "$task_id" "$task_desc" "$worker_dir" "$PROJECT_DIR" || pr_exit=$?
+                        if [ $pr_exit -eq 0 ] && [ -n "${GIT_PR_URL:-}" ]; then
+                            echo "$GIT_PR_URL" > "$worker_dir/pr_url.txt"
+                        fi
+                    fi
+                fi
+
+                # Re-read pr_url after creation attempt
+                [ -f "$worker_dir/pr_url.txt" ] && pr_url=$(cat "$worker_dir/pr_url.txt" 2>/dev/null)
+
+                # Only mark [P] if PR exists or workspace is available; otherwise mark failed
+                lifecycle_is_loaded || lifecycle_load
+                if [ -n "$pr_url" ] || [ -d "$worker_dir/workspace" ]; then
+                    if ! emit_event "$worker_dir" "task.pending_approval" "orch-resume-decide.COMPLETE"; then
+                        update_kanban_pending_approval "$RALPH_DIR/kanban.md" "$task_id" || true
+                    fi
+                    resume_state_set_terminal "$worker_dir" "Work complete, task marked [P]"
+                    log "Task $task_id finalized as COMPLETE by resume-decide"
+                else
+                    emit_event "$worker_dir" "worker.failure" "orch-resume-decide.COMPLETE.no_pr" || {
+                        update_kanban_failed "$RALPH_DIR/kanban.md" "$task_id" || true
+                    }
+                    resume_state_set_terminal "$worker_dir" "COMPLETE but no PR and no workspace — marked [*]"
+                    log_error "Task $task_id COMPLETE decision but no PR or workspace — marking failed"
+                fi
             fi
 
             # Remove decision file so it doesn't enter unified queue
