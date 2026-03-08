@@ -616,8 +616,17 @@ Co-Authored-By: ${WIGGUM_GIT_AUTHOR_NAME} <${WIGGUM_GIT_AUTHOR_EMAIL}>"
         commit_hash=$(git rev-parse HEAD)
         log "Created commit: $commit_hash on branch $branch_name"
     else
-        # No uncommitted changes - sub-agents already committed everything
-        log "No uncommitted changes - sub-agents already committed all work"
+        # No uncommitted changes - check if branch has commits ahead of base
+        local default_branch
+        default_branch=$(get_default_branch)
+        local ahead_count
+        ahead_count=$(git rev-list --count "$default_branch..HEAD" 2>/dev/null || echo "0")
+        if [ "$ahead_count" -eq 0 ]; then
+            log "No code changes produced - skipping PR creation"
+            GIT_COMMIT_BRANCH=""
+            return 1
+        fi
+        log "No uncommitted changes - sub-agents already committed all work ($ahead_count commits ahead)"
     fi
 
     GIT_COMMIT_BRANCH="$branch_name"
@@ -657,19 +666,10 @@ git_create_pr() {
         changes_section=$(cat "$worker_dir/summaries/summary.txt")
     fi
 
-    # Calculate and include metrics if available
+    # Metrics calculated for local use only (not included in PR body)
     local metrics_section=""
     if [ -f "$worker_dir/worker.log" ]; then
         calculate_worker_cost "$worker_dir/worker.log" > "$worker_dir/metrics.txt" 2>&1 || true
-        if [ -f "$worker_dir/metrics.txt" ]; then
-            metrics_section="
-## Metrics
-
-\`\`\`
-$(tail -n +3 "$worker_dir/metrics.txt")
-\`\`\`
-"
-        fi
     fi
 
     # Read PRD for summary

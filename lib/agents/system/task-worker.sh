@@ -350,6 +350,9 @@ agent_run() {
                 git_create_pr "$branch_name" "$task_id" "$task_desc" "$worker_dir" "$project_dir"
                 pr_url="$GIT_PR_URL"
                 log "PR created: $pr_url"
+            elif [ -z "${GIT_COMMIT_BRANCH:-}" ]; then
+                log "Task completed without code changes -- will mark [x] directly"
+                echo "no-code-change" > "$worker_dir/no-pr-needed"
             else
                 log_error "Failed to create commit"
                 final_status="FAILED"
