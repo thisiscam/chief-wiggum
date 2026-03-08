@@ -100,9 +100,12 @@ fi
 
 list_worker_prs() {
     log "Listing worker Pull Requests..."
-    gh pr list --label "chief-wiggum" --state open 2>/dev/null || \
-    gh pr list --search "Chief Wiggum in:title" --state open 2>/dev/null || \
-    gh pr list --search "task/ in:head" --state open
+    local result
+    result=$(gh pr list --label "chief-wiggum" --state open 2>/dev/null || true)
+    if [ -n "$result" ]; then echo "$result"; return 0; fi
+    result=$(gh pr list --search "Chief Wiggum in:title" --state open 2>/dev/null || true)
+    if [ -n "$result" ]; then echo "$result"; return 0; fi
+    gh pr list --search "head:task/" --state open
 }
 
 # Resolve a task ID to its worker branch name
@@ -187,6 +190,16 @@ merge_pr() {
     # Use 'wiggum pr cleanup' to delete merged branches
     if gh pr merge "$branch" $merge_flag; then
         log "Merged PR for $task_id"
+
+        # Trigger memory system for manually merged PRs
+        source "$WIGGUM_HOME/lib/memory/memory.sh"
+        local worker_dir
+        worker_dir=$(find_worker_by_task_id "$RALPH_DIR" "$task_id" 2>/dev/null || true)
+        if [ -n "$worker_dir" ] && [ -d "$worker_dir" ]; then
+            memory_collect_stats "$worker_dir" "$RALPH_DIR" || true
+            memory_queue_worker "$worker_dir" || true
+        fi
+
         return 0
     else
         log_error "Failed to merge PR for $task_id"
@@ -428,10 +441,13 @@ cmd_global_sync() {
             new_label=$(github_sync_get_status_label "x")
             github_pr_set_status_label "$pr_number" "$new_label" "$old_label" || true
 
-            # Archive worker directory now that PR is merged
+            # Trigger memory system before archiving
             local worker_dir
             worker_dir=$(find_worker_by_task_id "$RALPH_DIR" "$task_id" 2>/dev/null || true)
             if [ -n "$worker_dir" ] && [ -d "$worker_dir" ]; then
+                source "$WIGGUM_HOME/lib/memory/memory.sh"
+                memory_collect_stats "$worker_dir" "$RALPH_DIR" || true
+                memory_queue_worker "$worker_dir" || true
                 _cleanup_merged_worktree "$worker_dir"
             fi
 
@@ -607,10 +623,13 @@ cmd_task_sync() {
                 new_label=$(github_sync_get_status_label "x")
                 github_pr_set_status_label "$pr_number" "$new_label" "$old_label" || true
 
-                # Archive worker directory now that PR is merged
+                # Trigger memory system before archiving
                 local worker_dir
                 worker_dir=$(find_worker_by_task_id "$RALPH_DIR" "$task_id" 2>/dev/null || true)
                 if [ -n "$worker_dir" ] && [ -d "$worker_dir" ]; then
+                    source "$WIGGUM_HOME/lib/memory/memory.sh"
+                    memory_collect_stats "$worker_dir" "$RALPH_DIR" || true
+                    memory_queue_worker "$worker_dir" || true
                     _cleanup_merged_worktree "$worker_dir"
                 fi
             fi
