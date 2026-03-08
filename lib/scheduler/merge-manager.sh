@@ -552,6 +552,8 @@ process_pending_merges() {
         [ -d "$worker_dir" ] || continue
 
         if git_state_is "$worker_dir" "needs_merge"; then
+            [ ! -f "$worker_dir/no-pr-needed" ] || continue
+
             local worker_id
             worker_id=$(basename "$worker_dir")
             local task_id
