@@ -1,7 +1,7 @@
 {
   "git": {
-    "author_name": "Ralph Wiggum",
-    "author_email": "ralph@wiggum.cc"
+    "author_name": "Claude",
+    "author_email": "noreply+claude@anthropic.com"
   },
   "claude": {
     "max_retries": 3,
@@ -53,7 +53,11 @@
     },
     "issue_sync": {
       "enabled": true,
-      "allowed_user_ids": [123998984,124862625,124581466],
+      "allowed_user_ids": [
+        123998984,
+        124862625,
+        124581466
+      ],
       "label_filter": "wiggum",
       "priority_labels": {
         "priority:critical": "CRITICAL",
@@ -69,7 +73,9 @@
         "wiggum:completed": "x",
         "wiggum:not-planned": "N"
       },
-      "close_on": ["x"],
+      "close_on": [
+        "x"
+      ],
       "auto_create": true
     }
   },
@@ -90,7 +96,12 @@
     "mode": "hybrid"
   },
   "review": {
-    "approved_user_ids": [123998984,124862625,124581466,175728472],
+    "approved_user_ids": [
+      123998984,
+      124862625,
+      124581466,
+      175728472
+    ],
     "fix_max_iterations": 10,
     "fix_max_turns": 30,
     "auto_commit_after_fix": true
